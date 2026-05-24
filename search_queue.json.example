@@ -1,0 +1,14 @@
+[
+  {
+    "title": "<first paper title>",
+    "doi": "<first paper doi>"
+  },
+  {
+    "title": "<second paper title>",
+    "doi": "<second paper doi>"
+  },
+  {
+    "title": "<third paper title>",
+    "doi": "<third paper doi>"
+  }
+]

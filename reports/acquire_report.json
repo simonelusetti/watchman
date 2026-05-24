@@ -1,0 +1,87 @@
+{
+  "results": [
+    {
+      "query": "Modeling annotators: a generative approach to learning from annotator rationales",
+      "status": "download_failed",
+      "metadata": {
+        "title": "Modeling Annotators: A Generative Approach to Learning from Annotator Rationales",
+        "authors": [
+          "Omar Zaidan",
+          "Jason Eisner"
+        ],
+        "year": 2008,
+        "venue": "Conference on Empirical Methods in Natural Language Processing",
+        "abstract": "A human annotator can provide hints to a machine learner by highlighting contextual \"rationales\" for each of his or her annotations (Zaidan et al., 2007). How can one exploit this side information to better learn the desired parameters \u03b8? We present a generative model of how a given annotator, knowing the true \u03b8, stochastically chooses rationales. Thus, observing the rationales helps us infer the true \u03b8. We collect substring rationales for a sentiment classification task (Pang and Lee, 2004) and use them to obtain significant accuracy improvements for each annotator. Our new generative approach exploits the rationales more effectively than our previous \"masking SVM\" approach. It is also more principled, and could be adapted to help learn other kinds of probabilistic classifiers for quite different tasks.",
+        "arxiv_id": null,
+        "doi": "10.3115/1613715.1613721",
+        "pdf_url": "https://dl.acm.org/doi/pdf/10.5555/1613715.1613721",
+        "source": "semantic_scholar"
+      }
+    },
+    {
+      "query": "Sample Efficient Reinforcement Learning with REINFORCE",
+      "status": "found",
+      "pdf": "tmp/sample_efficient_reinforcement_learning_with_reinforce.pdf",
+      "content_score": -1.0,
+      "metadata": {
+        "title": "Sample Efficient Reinforcement Learning with REINFORCE",
+        "authors": [
+          "Junzi Zhang",
+          "Jongho Kim",
+          "Brendan O'Donoghue",
+          "Stephen Boyd"
+        ],
+        "year": 2020,
+        "venue": "arXiv",
+        "abstract": "Policy gradient methods are among the most effective methods for large-scale reinforcement learning, and their empirical success has prompted several works that develop the foundation of their global convergence theory. However, prior works have either required exact gradients or state-action visitation measure based mini-batch stochastic gradients with a diverging batch size, which limit their applicability in practical scenarios. In this paper, we consider classical policy gradient methods that compute an approximate gradient with a single trajectory or a fixed size mini-batch of trajectories under soft-max parametrization and log-barrier regularization, along with the widely-used REINFORCE gradient estimation procedure. By controlling the number of \"bad\" episodes and resorting to the classical doubling trick, we establish an anytime sub-linear high probability regret bound as well as almost sure global convergence of the average regret with an asymptotically sub-linear rate. These provide the first set of global convergence and sample efficiency results for the well-known REINFORCE algorithm and contribute to a better understanding of its performance in practice.",
+        "arxiv_id": "2010.11364",
+        "pdf_url": "https://arxiv.org/pdf/2010.11364v2",
+        "source": "arxiv"
+      }
+    },
+    {
+      "query": "Cross-lingual Name Tagging and Linking for 282 Languages",
+      "status": "found",
+      "pdf": "tmp/crosslingual_name_tagging_and_linking_for_282_languages.pdf",
+      "content_score": -1.0,
+      "metadata": {
+        "title": "Cross-lingual Name Tagging and Linking for 282 Languages",
+        "authors": [
+          "Xiaoman Pan",
+          "Boliang Zhang",
+          "Jonathan May",
+          "J. Nothman",
+          "Kevin Knight",
+          "Heng Ji"
+        ],
+        "year": 2017,
+        "venue": "Annual Meeting of the Association for Computational Linguistics",
+        "abstract": "The ambitious goal of this work is to develop a cross-lingual name tagging and linking framework for 282 languages that exist in Wikipedia. Given a document in any of these languages, our framework is able to identify name mentions, assign a coarse-grained or fine-grained type to each mention, and link it to an English Knowledge Base (KB) if it is linkable. We achieve this goal by performing a series of new KB mining methods: generating \u201csilver-standard\u201d annotations by transferring annotations from English to other languages through cross-lingual links and KB properties, refining annotations through self-training and topic selection, deriving language-specific morphology features from anchor links, and mining word translation pairs from cross-lingual links. Both name tagging and linking results for 282 languages are promising on Wikipedia data and on-Wikipedia data.",
+        "arxiv_id": null,
+        "doi": "10.18653/v1/P17-1178",
+        "pdf_url": "https://www.aclweb.org/anthology/P17-1178.pdf",
+        "source": "semantic_scholar"
+      }
+    },
+    {
+      "query": "Read Between the Tokens: Differentiable Text Pruning via Perturbed Top-k Selection",
+      "status": "found",
+      "pdf": "tmp/read_between_the_tokens_differentiable_text_pruning_via_pert.pdf",
+      "content_score": -1.0,
+      "metadata": {
+        "title": "Read Between the Tokens: Differentiable Text Pruning via Perturbed Top-k Selection",
+        "authors": [
+          "",
+          "",
+          ""
+        ],
+        "year": 2025,
+        "venue": "IEEE Transactions on Audio Speech and Language Processing",
+        "abstract": "",
+        "doi": "10.1109/TASLPRO.2025.3629289",
+        "pdf_url": "https://cris.unibo.it/bitstream/11585/1027359/3/Read_Between_the_Tokens_Differentiable_Text_Pruning_via_Perturbed_Top-k_Selection.pdf",
+        "source": "unpaywall"
+      }
+    }
+  ]
+}

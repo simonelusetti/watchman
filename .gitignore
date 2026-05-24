@@ -1,0 +1,17 @@
+# Ignore all files inside any 'pdfs' or 'papers' directories
+**/pdfs/**
+**/papers/**
+**/tmp/**
+
+# But track .gitkeep files to preserve directory structure
+!**/pdfs/.gitkeep
+!**/papers/.gitkeep
+!**/tmp/.gitkeep
+
+scripts/__pycache__/
+bank_index.md
+config.json
+!config.json.exmaple
+map.md
+search_queue.json
+!search_queue.json.example
