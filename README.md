@@ -1,4 +1,4 @@
-# papers_bank
+# watchman
 
 A personal scientific literature bank. Flat structure — one summary file per paper, organisation lives in the metadata.
 
