@@ -282,3 +282,54 @@ Training uses either the negative log-likelihood $\mathcal{L}(m) = -s(m, e_*) + 
 **Scalability vs. precision.** The bi-encoder is fast (sub-linear retrieval via FAISS) but loses the cross-attention signal; the cross-encoder is precise but $O(k)$ per mention where $k$ is the candidate set size. The pipeline (bi-encoder retrieval → cross-encoder re-ranking) composes both: the bi-encoder ensures high recall at the top-$k$ shortlist; the cross-encoder ensures high precision from the shortlist. GENRE replaces both with constrained beam search over a prefix trie, scaling with vocabulary size (not entity count) at each decoding step and achieving a memory footprint ~14–34× smaller than dense retrieval systems.
 
 **Pre-training objectives.** Standard BERT pre-training (MLM + NSP) is a generic language model and does not specifically encourage span-level representations. SpanBERT's SBO forces boundary tokens to encode span content, directly improving span-dependent downstream tasks. For EL, BLINK pre-trains encoders on generic BERT then fine-tunes on Wikipedia mention-entity pairs; GENRE pre-trains BART on language modelling then fine-tunes on BLINK's 9M entity triples. There is no universal recipe: the choice of pre-training data and objective should match the downstream task's input-output structure.
+
+---
+
+## 8. Experimental Comparison: Three Architectures
+
+This section maps the three architectures selected for experimental evaluation to their mathematical scoring functions. In all cases, mention boundaries are assumed given; the task is pure entity disambiguation (ED).
+
+**Architecture A — Cross-encoder** · source: Logeswaran et al. (2019), §4.1
+
+Mention context and entity description are concatenated into a single transformer input:
+
+$$\text{input} = [\text{CLS}]\; m \; [\text{SEP}]\; d_e \; [\text{SEP}]$$
+
+Full bidirectional self-attention operates jointly over mention and description tokens at every layer. The $[\text{CLS}]$ embedding $\boldsymbol{h}_{m,e}$ is projected to a scalar score:
+
+$$s_A(m, e) = \boldsymbol{w}^\top \boldsymbol{h}_{m,e}$$
+
+The predicted entity is $\hat{e} = \arg\max_{e \in \mathcal{C}(m)} s_A(m, e)$ over a candidate shortlist $\mathcal{C}(m)$. Training uses cross-entropy over the candidate set. This architecture allows the richest mention–description interaction but requires one forward pass per candidate, so the candidate set must be small (typically $|\mathcal{C}(m)| \leq 64$).
+
+**Architecture B — Bi-encoder retrieval + cross-encoder re-ranking** · source: BLINK, Wu et al. (2020), §4.2
+
+*Stage 1 — retrieval.* Two independent encoders produce single-vector representations:
+
+$$\boldsymbol{y}_m = \text{BERT}_1([\text{CLS}]\; \text{ctx}_l\; [\text{M}_s]\; m\; [\text{M}_e]\; \text{ctx}_r\; [\text{SEP}])_{[\text{CLS}]}$$
+$$\boldsymbol{y}_e = \text{BERT}_2([\text{CLS}]\; \text{title}\; [\text{ENT}]\; d_e\; [\text{SEP}])_{[\text{CLS}]}$$
+
+Score: $s_B^{(1)}(m, e) = \boldsymbol{y}_m \cdot \boldsymbol{y}_e$. Because $\boldsymbol{y}_e$ is independent of the query, all entity vectors are pre-computed and stored in a FAISS index; retrieval is maximum inner-product search in sub-linear time. The top $k$ entities are returned as $\mathcal{C}(m)$.
+
+*Stage 2 — re-ranking.* A cross-encoder (identical in form to Architecture A) reorders $\mathcal{C}(m)$:
+
+$$s_B^{(2)}(m, e) = \boldsymbol{y}_{m,e}\, \mathbf{W}, \qquad \text{input} = [\text{CLS}]\; \text{ctx}_l\; m\; \text{ctx}_r\; [\text{SEP}]\; d_e\; [\text{SEP}]$$
+
+Final prediction: $\hat{e} = \arg\max_{e \in \mathcal{C}(m)} s_B^{(2)}(m, e)$.
+
+The gap between bi-encoder and cross-encoder can be partially closed by knowledge distillation: the cross-encoder's softmax outputs at temperature $\tau$ serve as soft targets for the bi-encoder's training loss, $\mathcal{L} = \alpha\, \mathcal{L}_\text{student} + (1-\alpha)\, \mathcal{H}(\sigma(z_t; \tau),\, \sigma(z_s; \tau))$.
+
+**Architecture C — Autoregressive generation** · source: GENRE, De Cao et al. (2021), §4.3
+
+An entity $e$ identified by textual name $y = (y_1, \ldots, y_N)$ is scored by a BART encoder-decoder:
+
+$$s_C(e \mid x) = p_\theta(y \mid x) = \prod_{i=1}^{N} p_\theta(y_i \mid y_{<i},\, x)$$
+
+At each decoding step, a prefix trie $\mathcal{T}$ over all valid entity names constrains the next-token distribution: tokens not admissible as continuations of the current prefix have their log-probability set to $-\infty$. This guarantees every beam hypothesis terminates at a real entity identifier without requiring a dense entity index.
+
+The exact softmax at each step is over vocabulary tokens (size $\sim$50K), not entity count ($\sim$6M), so no negative sampling is required during training.
+
+| Architecture | Scoring function | Index required | Inference cost |
+|---|---|---|---|
+| A — Cross-encoder | $\boldsymbol{w}^\top \boldsymbol{h}_{m,e}$ | None | $O(\lvert\mathcal{C}(m)\rvert)$ forward passes |
+| B — Bi-encoder + reranker | $\boldsymbol{y}_m \cdot \boldsymbol{y}_e$ then $\boldsymbol{y}_{m,e}\mathbf{W}$ | FAISS dense index | $O(1)$ retrieval + $O(k)$ reranks |
+| C — Autoregressive | $\prod_i p_\theta(y_i \mid y_{<i}, x)$ | Prefix trie | $O(\text{beam} \times \bar{L})$ decoding steps |

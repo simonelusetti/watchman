@@ -58,6 +58,12 @@ try:
 except ImportError:
     HAS_YAML = False
 
+try:
+    from tqdm import tqdm
+    HAS_TQDM = True
+except ImportError:
+    HAS_TQDM = False
+
 # ---------------------------------------------------------------------------
 # Paths  (all relative to papers_bank/, which is this script's parent)
 # ---------------------------------------------------------------------------
@@ -88,6 +94,11 @@ ACADEMIC_DOMAINS = [
     "proceedings.mlr.press",
     "papers.nips.cc",
     "neurips.cc",
+    # Biomedical
+    "ncbi.nlm.nih.gov",
+    "europepmc.org",
+    "medrxiv.org",
+    "biorxiv.org",
 ]
 
 HEADERS = {"User-Agent": "paper-acquire/1.0 (research pipeline; contact via github)"}
@@ -119,9 +130,8 @@ def download_pdf(url: str, dest: Path) -> bool:
     try:
         r = requests.get(url, timeout=30, stream=True, headers=HEADERS)
         r.raise_for_status()
-        # Sanity-check: real PDFs start with %PDF
         content = r.content
-        if not content[:4] == b"%PDF":
+        if content[:4] != b"%PDF":
             return False
         dest.write_bytes(content)
         return True
@@ -130,7 +140,7 @@ def download_pdf(url: str, dest: Path) -> bool:
         return False
 
 
-PDF_CONTENT_THRESHOLD = 0.5
+PDF_CONTENT_THRESHOLD = 0.7
 
 
 def _extract_pdf_title(doc) -> str:
@@ -234,8 +244,25 @@ def verify_pdf_content(pdf_path: Path, query_title: str) -> tuple[bool, float]:
 
 def normalise_title(title: str) -> str:
     t = title.lower()
-    t = re.sub(r"[^a-z0-9\s]", "", t)
+    t = re.sub(r"[^a-z0-9\s]", " ", t)   # replace punctuation with space, not delete
     return re.sub(r"\s+", " ", t).strip()
+
+
+def sanitize_for_search(title: str) -> str:
+    """Convert Unicode punctuation to plain ASCII before building search queries.
+
+    External APIs (arXiv, DuckDuckGo) often choke on Unicode dashes, curly
+    quotes, and other typographic characters when they appear inside quoted
+    phrase searches.  This function replaces them with their nearest ASCII
+    equivalent so the query reaches the API cleanly.
+    """
+    import unicodedata
+    title = unicodedata.normalize("NFC", title)
+    title = re.sub(r"[–—−‐]", "-", title)   # all dash variants → hyphen
+    title = re.sub(r"[''`]",   "'", title)   # curly/backtick quotes → straight
+    title = re.sub(r'[""]',    '"', title)   # curly double quotes → straight
+    title = title.encode("ascii", "ignore").decode("ascii")  # drop any remaining non-ASCII
+    return title.strip()
 
 
 # Stop-words to exclude from title similarity (they inflate scores trivially)
@@ -260,7 +287,7 @@ def title_similarity(query: str, result: str) -> float:
     return 2 * precision * recall / (precision + recall)  # F1
 
 
-TITLE_SIMILARITY_THRESHOLD = 0.5  # reject results below this score
+TITLE_SIMILARITY_THRESHOLD = 0.65  # reject results below this score
 
 
 # ---------------------------------------------------------------------------
@@ -290,37 +317,52 @@ def try_arxiv(paper: dict) -> dict | None:
     if not HAS_ARXIV:
         return None
 
-    backoff = 10  # seconds to wait after a 429 before one retry
-    client  = arxiv_lib.Client(delay_seconds=5.0, num_retries=1)
+    backoff      = 10  # seconds to wait after a 429 before one retry
+    client       = arxiv_lib.Client(delay_seconds=5.0, num_retries=1)
+    clean_title  = sanitize_for_search(paper["title"])
 
-    for attempt in range(2):
-        try:
-            hits = list(client.results(arxiv_lib.Search(
-                query=f'ti:"{paper["title"]}"',
-                max_results=3,
-            )))
-            break  # success
-        except arxiv_lib.HTTPError as e:
-            if e.status == 429 and attempt == 0:
-                print(f"    arXiv 429 — waiting {backoff}s then retrying...")
-                time.sleep(backoff)
-            else:
-                print(f"    arXiv error ({e.status}), skipping")
-                return None
-        except Exception as e:
-            print(f"    arXiv unexpected error: {e}, skipping")
-            return None
-    else:
-        return None
+    def _arxiv_search(query: str) -> list:
+        for attempt in range(2):
+            try:
+                return list(client.results(arxiv_lib.Search(query=query, max_results=3)))
+            except arxiv_lib.HTTPError as e:
+                if e.status == 429 and attempt == 0:
+                    print(f"    arXiv 429 — waiting {backoff}s then retrying...")
+                    time.sleep(backoff)
+                else:
+                    print(f"    arXiv error ({e.status}), skipping")
+                    return []
+            except Exception as e:
+                print(f"    arXiv unexpected error: {e}, skipping")
+                return []
+        return []
+
+    # Pass 1: exact phrase search (fast, precise)
+    hits = _arxiv_search(f'ti:"{clean_title}"')
+
+    # Pass 2: keyword search — catches titles where the phrase match fails due to
+    # word order variation, punctuation differences, or subtitle truncation
+    if not hits:
+        keywords = [w for w in clean_title.split() if w.lower() not in _SLUG_STOP and len(w) > 2]
+        if keywords:
+            kw_query = " ".join(f"ti:{w}" for w in keywords[:8])
+            hits = _arxiv_search(kw_query)
 
     if not hits:
         return None
 
-    p = hits[0]
-    score = title_similarity(paper["title"], p.title)
-    if score < TITLE_SIMILARITY_THRESHOLD:
-        print(f"    arXiv title mismatch (score={score:.2f}): '{p.title}'")
+    # Pick the best-matching result across both passes
+    best, best_score = None, 0.0
+    for p in hits:
+        score = title_similarity(paper["title"], p.title)
+        if score > best_score:
+            best, best_score = p, score
+
+    if best_score < TITLE_SIMILARITY_THRESHOLD:
+        print(f"    arXiv title mismatch (score={best_score:.2f}): '{best.title}'")
         return None
+
+    p = best
 
     return {
         "title":    p.title,
@@ -510,14 +552,166 @@ def try_unpaywall(paper: dict) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
-# Source 5: Web search fallback (DuckDuckGo)
+# Source 5: PubMed Central (biomedical open-access archive)
+# ---------------------------------------------------------------------------
+
+import xml.etree.ElementTree as ET
+
+PMC_SEARCH  = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+PMC_SUMMARY = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
+PMC_OA      = "https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi"
+
+
+def try_pubmed_central(paper: dict) -> dict | None:
+    """Search PubMed Central for open-access biomedical papers.
+
+    Uses the NCBI E-utilities API (no key required; rate-limited to ~3 req/s).
+    PDF URLs are resolved via the PMC Open Access service, which only returns
+    links for articles that are genuinely open-access — no paywalled hits.
+    """
+    try:
+        # Title search in PMC
+        r = requests.get(PMC_SEARCH, params={
+            "db":      "pmc",
+            "term":    f'"{paper["title"]}"[Title]',
+            "retmode": "json",
+            "retmax":  3,
+        }, timeout=10, headers=HEADERS)
+        if not r.ok:
+            return None
+
+        ids = r.json().get("esearchresult", {}).get("idlist", [])
+        if not ids:
+            return None
+
+        # Verify title similarity on the first hit
+        pmcid = ids[0]
+        sum_r = requests.get(PMC_SUMMARY, params={
+            "db": "pmc", "id": pmcid, "retmode": "json",
+        }, timeout=10, headers=HEADERS)
+        if not sum_r.ok:
+            return None
+
+        doc          = sum_r.json().get("result", {}).get(pmcid, {})
+        result_title = doc.get("title", "")
+        score        = title_similarity(paper["title"], result_title)
+        if score < TITLE_SIMILARITY_THRESHOLD:
+            print(f"    PMC title mismatch (score={score:.2f}): '{result_title[:60]}'")
+            return None
+
+        # Resolve PDF via the OA service (returns XML with ftp/https links)
+        oa_r = requests.get(PMC_OA, params={"id": f"PMC{pmcid}"}, timeout=10, headers=HEADERS)
+        if not oa_r.ok:
+            return None
+
+        root    = ET.fromstring(oa_r.text)
+        pdf_url = None
+        for link in root.iter("link"):
+            if link.get("format") == "pdf":
+                href = link.get("href", "")
+                # ftp:// links work fine but some clients prefer https://
+                if href.startswith("ftp://"):
+                    href = href.replace("ftp://", "https://", 1)
+                pdf_url = href
+                break
+
+        if not pdf_url:
+            return None
+
+        year_m  = re.search(r"\b(19|20)\d{2}\b", doc.get("pubdate", ""))
+        authors = [a.get("name", "") for a in doc.get("authors", [])]
+
+        return {
+            "title":    result_title or paper["title"],
+            "authors":  authors,
+            "year":     int(year_m.group()) if year_m else None,
+            "venue":    doc.get("source", ""),
+            "abstract": "",
+            "pdf_url":  pdf_url,
+            "source":   "pubmed_central",
+        }
+
+    except Exception as e:
+        print(f"    PMC error: {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Source 6: Europe PMC (broader biomedical coverage, direct PDF links)
+# ---------------------------------------------------------------------------
+
+EPMC_SEARCH = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+
+
+def try_europe_pmc(paper: dict) -> dict | None:
+    """Search Europe PubMed Central.
+
+    Europe PMC indexes ~40 M biomedical records including PubMed, PMC, preprints,
+    and clinical trial records. The API returns structured PDF links with an
+    explicit open-access flag, making it easy to filter for downloadable files.
+    """
+    try:
+        r = requests.get(EPMC_SEARCH, params={
+            "query":      f'TITLE:"{paper["title"]}"',
+            "format":     "json",
+            "resultType": "core",
+            "pageSize":   3,
+        }, timeout=10, headers=HEADERS)
+        if not r.ok:
+            return None
+
+        for item in r.json().get("resultList", {}).get("result", []):
+            result_title = item.get("title", "").rstrip(".")
+            score        = title_similarity(paper["title"], result_title)
+            if score < TITLE_SIMILARITY_THRESHOLD:
+                print(f"    EPMC title mismatch (score={score:.2f}): '{result_title[:60]}'")
+                continue
+
+            # Walk fullTextUrlList for an open-access PDF
+            pdf_url = None
+            for url_obj in item.get("fullTextUrlList", {}).get("fullTextUrl", []):
+                if (url_obj.get("documentStyle") == "pdf"
+                        and url_obj.get("availability") in ("Open access", "Free")):
+                    pdf_url = url_obj.get("url")
+                    break
+
+            if not pdf_url:
+                continue
+
+            year    = item.get("pubYear")
+            authors = [
+                f"{a.get('lastName', '')}, {a.get('initials', '')}".strip(", ")
+                for a in item.get("authorList", {}).get("author", [])
+            ]
+
+            return {
+                "title":    result_title or paper["title"],
+                "authors":  authors,
+                "year":     int(year) if year else None,
+                "venue":    item.get("journalTitle", ""),
+                "abstract": item.get("abstractText", ""),
+                "doi":      item.get("doi"),
+                "pdf_url":  pdf_url,
+                "source":   "europe_pmc",
+            }
+
+        return None
+
+    except Exception as e:
+        print(f"    Europe PMC error: {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Source 7: Web search fallback (DuckDuckGo)
 # ---------------------------------------------------------------------------
 
 DDG_URL = "https://html.duckduckgo.com/html/"
 
 
 def try_web_search(paper: dict) -> dict | None:
-    query = f'"{paper["title"]}" filetype:pdf OR site:arxiv.org OR site:aclanthology.org OR site:openreview.net'
+    clean_title = sanitize_for_search(paper["title"])
+    query = f'"{clean_title}" filetype:pdf OR site:arxiv.org OR site:aclanthology.org OR site:openreview.net'
     try:
         r = requests.post(
             DDG_URL,
@@ -681,12 +875,65 @@ def already_in_bank(metadata: dict, bank: dict) -> dict | None:
 # ---------------------------------------------------------------------------
 
 SOURCES = [
-    try_arxiv,
-    try_acl_anthology,
-    try_semantic_scholar,
-    try_unpaywall,
-    try_web_search,
+    try_arxiv,           # 1. arXiv            — CS / math / physics / quant-bio
+    try_acl_anthology,   # 2. ACL Anthology     — NLP / CL venues
+    try_semantic_scholar,# 3. Semantic Scholar  — broad; requires openAccessPdf
+    try_pubmed_central,  # 4. PubMed Central    — biomedical open-access archive
+    try_europe_pmc,      # 5. Europe PMC        — broader biomedical; direct PDF links
+    try_unpaywall,       # 6. Unpaywall         — any field, DOI required
+    try_web_search,      # 7. DuckDuckGo        — last-resort fallback
 ]
+
+
+# ---------------------------------------------------------------------------
+# Pre-flight check — batch dedup before any network calls
+# ---------------------------------------------------------------------------
+
+def preflight(queue: list, bank: dict) -> tuple[list, list, list]:
+    """
+    Classify the entire queue before touching any network source.
+
+    Returns three lists:
+      - skip_bank:  papers already catalogued in the bank; no work needed
+      - skip_tmp:   papers whose PDF already exists in tmp/ with nonzero size;
+                    need metadata lookup but NOT a new download
+      - to_fetch:   genuinely new papers requiring both metadata lookup + download
+
+    Bank check uses:
+      1. arxiv_id from the queue entry (most reliable — no normalisation needed)
+      2. Normalised title match against the bank index
+
+    tmp/ check uses slugify(queue_title) as a heuristic. In the rare case the
+    metadata title differs significantly from the queue title, the slug won't
+    match and the paper will land in to_fetch, causing a harmless re-download.
+    """
+    skip_bank, skip_tmp, to_fetch = [], [], []
+
+    for paper in queue:
+        title    = paper["title"]
+        arxiv_id = (paper.get("arxiv_id") or "").split("v")[0]
+
+        # Bank check — arxiv_id first (exact), then normalised title
+        existing = None
+        if arxiv_id:
+            existing = bank.get(f"arxiv:{arxiv_id}")
+        if not existing:
+            existing = bank.get(normalise_title(title))
+
+        if existing:
+            skip_bank.append((paper, existing))
+            continue
+
+        # tmp/ check
+        slug     = slugify(title)
+        pdf_path = TMP / f"{slug}.pdf"
+        if pdf_path.exists() and pdf_path.stat().st_size > 0:
+            skip_tmp.append(paper)
+            continue
+
+        to_fetch.append(paper)
+
+    return skip_bank, skip_tmp, to_fetch
 
 
 def acquire(queue: list) -> list:
@@ -698,10 +945,41 @@ def acquire(queue: list) -> list:
     if bank:
         print(f"Bank index loaded: {len([k for k in bank if not k.startswith('arxiv:')])} papers")
 
-    for paper in queue:
-        title = paper["title"]
+    # -------------------------------------------------------------------------
+    # Pre-flight: classify the whole queue before any network calls
+    # -------------------------------------------------------------------------
+    skip_bank, skip_tmp, to_fetch = preflight(queue, bank)
+
+    print(f"\nPre-flight ({len(queue)} paper(s)):")
+    print(f"  {len(skip_bank):3d} already in bank  — skipping entirely")
+    print(f"  {len(skip_tmp):3d} already in tmp/  — will skip download, fetch metadata only")
+    print(f"  {len(to_fetch):3d} new               — full fetch + download")
+
+    # Emit results for papers already in the bank
+    for paper, existing in skip_bank:
+        print(f"  [bank]  {paper['title'][:70]}")
+        results.append({
+            "query":       paper["title"],
+            "status":      "already_in_bank",
+            "existing_id": existing.get("id"),
+        })
+
+    if not (skip_tmp or to_fetch):
+        return results
+
+    # -------------------------------------------------------------------------
+    # Main loop: only runs for skip_tmp + to_fetch (i.e. nothing already in bank)
+    # -------------------------------------------------------------------------
+    in_tmp_titles = {p["title"] for p in skip_tmp}
+    pending       = skip_tmp + to_fetch
+    iterator      = tqdm(pending, desc="Acquiring", unit="paper") if HAS_TQDM else pending
+
+    for paper in iterator:
+        title   = paper["title"]
+        in_tmp  = title in in_tmp_titles
         print(f"\n→ {title}")
 
+        # Fetch metadata from sources
         metadata = None
         for source_fn in SOURCES:
             metadata = source_fn(paper)
@@ -710,11 +988,23 @@ def acquire(queue: list) -> list:
                 break
 
         if not metadata:
-            print("  not found on any source")
-            results.append({"query": title, "status": "not_found"})
+            if in_tmp:
+                # PDF already present but we can't confirm metadata — treat as found
+                slug = slugify(title)
+                print(f"  metadata not found; PDF already in tmp/ — reporting as found (verify manually)")
+                results.append({
+                    "query":    title,
+                    "status":   "found",
+                    "pdf":      f"tmp/{slug}.pdf",
+                    "metadata": {"title": title, "authors": [], "year": None, "venue": ""},
+                })
+            else:
+                print("  not found on any source")
+                results.append({"query": title, "status": "not_found"})
             continue
 
-        # --- Deduplication check ---
+        # Post-metadata bank check — catches edge cases where title normalisation
+        # differs between queue entry and metadata (e.g. subtitle truncation)
         existing = already_in_bank(metadata, bank)
         if existing:
             print(f"  already in bank [{existing['id']}, {existing.get('year', '?')}] — skipping")
@@ -727,14 +1017,31 @@ def acquire(queue: list) -> list:
 
         slug     = slugify(metadata["title"])
         pdf_path = TMP / f"{slug}.pdf"
-        print(f"  downloading → tmp/{slug}.pdf")
 
-        if download_pdf(metadata["pdf_url"], pdf_path):
-            # Verify the PDF content matches what we were looking for
+        if in_tmp:
+            # PDF already present — skip download, run content check only
+            print(f"  PDF already in tmp/ — skipping download")
             passed, score = verify_pdf_content(pdf_path, title)
-            score_str = f"{score:.2f}" if score >= 0 else "n/a"
             if passed:
-                print(f"  content check passed (score={score_str})")
+                print(f"  content check passed (score={score:.2f})" if score >= 0 else "  content check skipped (install pymupdf to enable)")
+                results.append({
+                    "query":         title,
+                    "status":        "found",
+                    "pdf":           f"tmp/{slug}.pdf",
+                    "content_score": score,
+                    "metadata":      metadata,
+                })
+                continue
+            else:
+                # Content mismatch on existing file — fall through to re-download
+                print(f"  content mismatch on existing file (score={score:.2f}) — re-downloading")
+
+        # Download
+        print(f"  downloading → tmp/{slug}.pdf")
+        if download_pdf(metadata["pdf_url"], pdf_path):
+            passed, score = verify_pdf_content(pdf_path, title)
+            if passed:
+                print(f"  content check passed (score={score:.2f})" if score >= 0 else "  content check skipped (install pymupdf to enable)")
                 results.append({
                     "query":         title,
                     "status":        "found",
@@ -743,7 +1050,7 @@ def acquire(queue: list) -> list:
                     "metadata":      metadata,
                 })
             else:
-                print(f"  content mismatch (score={score_str}) — discarding PDF")
+                print(f"  content mismatch (score={score:.2f}) — discarding PDF")
                 pdf_path.unlink(missing_ok=True)
                 results.append({
                     "query":         title,

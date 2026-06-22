@@ -1,50 +1,103 @@
 {
   "results": [
     {
-      "query": "All-but-the-Top: Simple and Effective Postprocessing for Word Representations",
+      "query": "Learning Named Entity Tagger using Domain-Specific Dictionary",
       "status": "found",
-      "pdf": "tmp/allbutthetop_simple_effective_postprocessing_word_representations.pdf",
-      "content_score": -1.0,
+      "pdf": "tmp/learning_named_entity_tagger_domainspecific_dictionary.pdf",
+      "content_score": 0.823529411764706,
       "metadata": {
-        "title": "All-but-the-Top: Simple and Effective Postprocessing for Word Representations",
+        "title": "Learning Named Entity Tagger using Domain-Specific Dictionary",
         "authors": [],
         "year": null,
         "venue": "arXiv",
         "abstract": "",
-        "arxiv_id": "1702.01417",
-        "pdf_url": "https://arxiv.org/pdf/1702.01417",
+        "arxiv_id": "1809.03599",
+        "pdf_url": "https://arxiv.org/pdf/1809.03599",
         "source": "arxiv"
       }
     },
     {
-      "query": "All Bark and No Bite: Rogue Dimensions in Transformer Language Models Obscure Representational Quality",
-      "status": "found",
-      "pdf": "tmp/all_bark_no_bite_rogue_dimensions.pdf",
-      "content_score": -1.0,
+      "query": "Results of the WNUT17 Shared Task on Novel and Emerging Named Entities",
+      "status": "content_mismatch",
+      "content_score": 0.625,
       "metadata": {
-        "title": "All Bark and No Bite: Rogue Dimensions in Transformer Language Models Obscure Representational Quality",
+        "title": "Results of the WNUT2017 Shared Task on Novel and Emerging Entity Recognition",
+        "authors": [
+          "Leon Derczynski",
+          "Eric Nichols",
+          "M. Erp",
+          "Nut Limsopatham"
+        ],
+        "year": 2017,
+        "venue": "NUT@EMNLP",
+        "abstract": "This shared task focuses on identifying unusual, previously-unseen entities in the context of emerging discussions. Named entities form the basis of many modern approaches to other tasks (like event clustering and summarization), but recall on them is a real problem in noisy text - even among annotators. This drop tends to be due to novel entities and surface forms. Take for example the tweet \u201cso.. kktny in 30 mins?!\u201d \u2013 even human experts find the entity \u2018kktny\u2019 hard to detect and resolve. The goal of this task is to provide a definition of emerging and of rare entities, and based on that, also datasets for detecting these entities. The task as described in this paper evaluated the ability of participating entries to detect and classify novel and emerging named entities in noisy text.",
+        "arxiv_id": null,
+        "doi": "10.18653/v1/W17-4418",
+        "pdf_url": "https://www.aclweb.org/anthology/W17-4418.pdf",
+        "source": "semantic_scholar"
+      }
+    },
+    {
+      "query": "CrossNER: Evaluating Cross-Domain Named Entity Recognition",
+      "status": "found",
+      "pdf": "tmp/crossner_evaluating_crossdomain_named_entity_recognition.pdf",
+      "content_score": 1.0,
+      "metadata": {
+        "title": "CrossNER: Evaluating Cross-Domain Named Entity Recognition",
         "authors": [],
         "year": null,
         "venue": "arXiv",
         "abstract": "",
-        "arxiv_id": "2109.04404",
-        "pdf_url": "https://arxiv.org/pdf/2109.04404",
+        "arxiv_id": "2012.04373",
+        "pdf_url": "https://arxiv.org/pdf/2012.04373",
         "source": "arxiv"
       }
     },
     {
-      "query": "Whitening Sentence Representations for Better Semantics and Faster Retrieval",
+      "query": "BOND: BERT-Enhanced Open-Domain Named Entity Recognition with Distant Supervision",
       "status": "found",
-      "pdf": "tmp/whitening_sentence_representations_better_semantics_faster.pdf",
-      "content_score": -1.0,
+      "pdf": "tmp/bond_bertenhanced_opendomain_named_entity_recognition.pdf",
+      "content_score": 0.9,
       "metadata": {
-        "title": "Whitening Sentence Representations for Better Semantics and Faster Retrieval",
+        "title": "BOND: BERT-Enhanced Open-Domain Named Entity Recognition with Distant Supervision",
         "authors": [],
         "year": null,
         "venue": "arXiv",
         "abstract": "",
-        "arxiv_id": "2103.15316",
-        "pdf_url": "https://arxiv.org/pdf/2103.15316",
+        "arxiv_id": "2006.15509",
+        "pdf_url": "https://arxiv.org/pdf/2006.15509",
+        "source": "arxiv"
+      }
+    },
+    {
+      "query": "Named Entity Recognition as Dependency Parsing",
+      "status": "found",
+      "pdf": "tmp/named_entity_recognition_dependency_parsing.pdf",
+      "content_score": 1.0,
+      "metadata": {
+        "title": "Named Entity Recognition as Dependency Parsing",
+        "authors": [],
+        "year": null,
+        "venue": "arXiv",
+        "abstract": "",
+        "arxiv_id": "2005.07150",
+        "pdf_url": "https://arxiv.org/pdf/2005.07150",
+        "source": "arxiv"
+      }
+    },
+    {
+      "query": "A Unified MRC Framework for Named Entity Recognition",
+      "status": "found",
+      "pdf": "tmp/unified_mrc_framework_named_entity_recognition.pdf",
+      "content_score": 0.7692307692307692,
+      "metadata": {
+        "title": "A Unified MRC Framework for Named Entity Recognition",
+        "authors": [],
+        "year": null,
+        "venue": "arXiv",
+        "abstract": "",
+        "arxiv_id": "1910.11476",
+        "pdf_url": "https://arxiv.org/pdf/1910.11476",
         "source": "arxiv"
       }
     }
