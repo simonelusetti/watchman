@@ -1,104 +1,123 @@
 {
   "results": [
     {
-      "query": "Learning Named Entity Tagger using Domain-Specific Dictionary",
+      "query": "SEE-Few: Seed, Expand and Entail for Few-shot Named Entity Recognition",
       "status": "found",
-      "pdf": "tmp/learning_named_entity_tagger_domainspecific_dictionary.pdf",
-      "content_score": 0.823529411764706,
+      "pdf": "tmp/seefew_seed_expand_entail_fewshot_named.pdf",
+      "content_score": 1.0,
       "metadata": {
-        "title": "Learning Named Entity Tagger using Domain-Specific Dictionary",
+        "title": "SEE-Few: Seed, Expand and Entail for Few-shot Named Entity Recognition",
         "authors": [],
         "year": null,
         "venue": "arXiv",
         "abstract": "",
-        "arxiv_id": "1809.03599",
-        "pdf_url": "https://arxiv.org/pdf/1809.03599",
+        "arxiv_id": "2210.05632",
+        "pdf_url": "https://arxiv.org/pdf/2210.05632",
         "source": "arxiv"
       }
     },
     {
-      "query": "Results of the WNUT17 Shared Task on Novel and Emerging Named Entities",
-      "status": "content_mismatch",
-      "content_score": 0.625,
+      "query": "Locate and Label: A Two-stage Identifier for Nested Named Entity Recognition",
+      "status": "found",
+      "pdf": "tmp/locate_label_twostage_identifier_nested_named.pdf",
+      "content_score": 0.8421052631578948,
       "metadata": {
-        "title": "Results of the WNUT2017 Shared Task on Novel and Emerging Entity Recognition",
+        "title": "Locate and Label: A Two-stage Identifier for Nested Named Entity Recognition",
+        "authors": [],
+        "year": null,
+        "venue": "arXiv",
+        "abstract": "",
+        "arxiv_id": "2105.06804",
+        "pdf_url": "https://arxiv.org/pdf/2105.06804",
+        "source": "arxiv"
+      }
+    },
+    {
+      "query": "Weakly-Supervised Semantic Segmentation Network with Deep Seeded Region Growing",
+      "status": "found",
+      "pdf": "tmp/weaklysupervised_semantic_segmentation_network_deep_seeded.pdf",
+      "content_score": 1.0,
+      "metadata": {
+        "title": "Weakly-Supervised Semantic Segmentation Network with Deep Seeded Region Growing",
+        "authors": [],
+        "year": null,
+        "venue": "",
+        "abstract": "",
+        "pdf_url": "https://openaccess.thecvf.com/content_cvpr_2018/papers/Huang_Weakly-Supervised_Semantic_Segmentation_CVPR_2018_paper.pdf",
+        "source": "web_search"
+      }
+    },
+    {
+      "query": "SimpleClick: Interactive Image Segmentation with Simple Vision Transformers",
+      "status": "found",
+      "pdf": "tmp/simpleclick_interactive_image_segmentation_simple_vision.pdf",
+      "content_score": 1.0,
+      "metadata": {
+        "title": "SimpleClick: Interactive Image Segmentation with Simple Vision Transformers",
+        "authors": [],
+        "year": null,
+        "venue": "arXiv",
+        "abstract": "",
+        "arxiv_id": "2210.11006",
+        "pdf_url": "https://arxiv.org/pdf/2210.11006",
+        "source": "arxiv"
+      }
+    },
+    {
+      "query": "DynaMITe: Dynamic Query Bootstrapping for Multi-object Interactive Segmentation Transformer",
+      "status": "found",
+      "pdf": "tmp/dynamite_dynamic_query_bootstrapping_multiobject_interactive.pdf",
+      "content_score": 1.0,
+      "metadata": {
+        "title": "DynaMITe: Dynamic Query Bootstrapping for Multi-object Interactive Segmentation Transformer",
+        "authors": [],
+        "year": null,
+        "venue": "arXiv",
+        "abstract": "",
+        "arxiv_id": "2304.06668",
+        "pdf_url": "https://arxiv.org/pdf/2304.06668",
+        "source": "arxiv"
+      }
+    },
+    {
+      "query": "Global Bootstrapping Neural Network for Entity Set Expansion",
+      "status": "found",
+      "pdf": "tmp/global_bootstrapping_neural_network_entity_set.pdf",
+      "content_score": 1.0,
+      "metadata": {
+        "title": "Global Bootstrapping Neural Network for Entity Set Expansion",
         "authors": [
-          "Leon Derczynski",
-          "Eric Nichols",
-          "M. Erp",
-          "Nut Limsopatham"
+          "Lingyong Yan",
+          "Xianpei Han",
+          "Ben He",
+          "Le Sun"
         ],
-        "year": 2017,
-        "venue": "NUT@EMNLP",
-        "abstract": "This shared task focuses on identifying unusual, previously-unseen entities in the context of emerging discussions. Named entities form the basis of many modern approaches to other tasks (like event clustering and summarization), but recall on them is a real problem in noisy text - even among annotators. This drop tends to be due to novel entities and surface forms. Take for example the tweet \u201cso.. kktny in 30 mins?!\u201d \u2013 even human experts find the entity \u2018kktny\u2019 hard to detect and resolve. The goal of this task is to provide a definition of emerging and of rare entities, and based on that, also datasets for detecting these entities. The task as described in this paper evaluated the ability of participating entries to detect and classify novel and emerging named entities in noisy text.",
+        "year": 2020,
+        "venue": "Findings",
+        "abstract": "Bootstrapping for entity set expansion (ESE) has been studied for a long period, which expands new entities using only a few seed entities as supervision. Recent end-to-end bootstrapping approaches have shown their advantages in information capturing and bootstrapping process modeling. However, due to the sparse supervision problem, previous end-to-end methods often only leverage information from near neighborhoods (local semantics) rather than those propagated from the co-occurrence structure of the whole corpus (global semantics). To address this issue, this paper proposes Global Bootstrapping Network (GBN) with the \u201cpre-training and fine-tuning\u201d strategies for effective learning. Specifically, it contains a global-sighted encoder to capture and encode both local and global semantics into entity embedding, and an attention-guided decoder to sequentially expand new entities based on these embeddings. The experimental results show that the GBN learned by \u201cpre-training and fine-tuning\u201d strategies achieves state-of-the-art performance on two bootstrapping datasets.",
         "arxiv_id": null,
-        "doi": "10.18653/v1/W17-4418",
-        "pdf_url": "https://www.aclweb.org/anthology/W17-4418.pdf",
+        "doi": "10.18653/v1/2020.findings-emnlp.331",
+        "pdf_url": "https://www.aclweb.org/anthology/2020.findings-emnlp.331.pdf",
         "source": "semantic_scholar"
       }
     },
     {
-      "query": "CrossNER: Evaluating Cross-Domain Named Entity Recognition",
-      "status": "found",
-      "pdf": "tmp/crossner_evaluating_crossdomain_named_entity_recognition.pdf",
-      "content_score": 1.0,
+      "query": "Learning to Bootstrap for Entity Set Expansion",
+      "status": "download_failed",
       "metadata": {
-        "title": "CrossNER: Evaluating Cross-Domain Named Entity Recognition",
-        "authors": [],
-        "year": null,
-        "venue": "arXiv",
+        "title": "Learning to Bootstrap for Entity Set Expansion",
+        "authors": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "year": 2019,
+        "venue": "Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)",
         "abstract": "",
-        "arxiv_id": "2012.04373",
-        "pdf_url": "https://arxiv.org/pdf/2012.04373",
-        "source": "arxiv"
-      }
-    },
-    {
-      "query": "BOND: BERT-Enhanced Open-Domain Named Entity Recognition with Distant Supervision",
-      "status": "found",
-      "pdf": "tmp/bond_bertenhanced_opendomain_named_entity_recognition.pdf",
-      "content_score": 0.9,
-      "metadata": {
-        "title": "BOND: BERT-Enhanced Open-Domain Named Entity Recognition with Distant Supervision",
-        "authors": [],
-        "year": null,
-        "venue": "arXiv",
-        "abstract": "",
-        "arxiv_id": "2006.15509",
-        "pdf_url": "https://arxiv.org/pdf/2006.15509",
-        "source": "arxiv"
-      }
-    },
-    {
-      "query": "Named Entity Recognition as Dependency Parsing",
-      "status": "found",
-      "pdf": "tmp/named_entity_recognition_dependency_parsing.pdf",
-      "content_score": 1.0,
-      "metadata": {
-        "title": "Named Entity Recognition as Dependency Parsing",
-        "authors": [],
-        "year": null,
-        "venue": "arXiv",
-        "abstract": "",
-        "arxiv_id": "2005.07150",
-        "pdf_url": "https://arxiv.org/pdf/2005.07150",
-        "source": "arxiv"
-      }
-    },
-    {
-      "query": "A Unified MRC Framework for Named Entity Recognition",
-      "status": "found",
-      "pdf": "tmp/unified_mrc_framework_named_entity_recognition.pdf",
-      "content_score": 0.7692307692307692,
-      "metadata": {
-        "title": "A Unified MRC Framework for Named Entity Recognition",
-        "authors": [],
-        "year": null,
-        "venue": "arXiv",
-        "abstract": "",
-        "arxiv_id": "1910.11476",
-        "pdf_url": "https://arxiv.org/pdf/1910.11476",
-        "source": "arxiv"
+        "doi": "10.18653/v1/D19-1028",
+        "pdf_url": "https://doi.org/10.18653/v1/d19-1028",
+        "source": "unpaywall"
       }
     }
   ]
