@@ -2,11 +2,13 @@
 **/pdfs/**
 **/papers/**
 **/tmp/**
+**/topics/**
 
 # But track .gitkeep files to preserve directory structure
 !**/pdfs/.gitkeep
 !**/papers/.gitkeep
 !**/tmp/.gitkeep
+!**/topics/.gitkeep
 
 scripts/__pycache__/
 bank_index.md
