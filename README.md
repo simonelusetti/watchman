@@ -20,6 +20,7 @@ papers_bank/
 ├── search_queue.json       ← input queue for the acquisition pipeline
 ├── papers/                 ← one {id}_summary.md per paper
 ├── pdfs/                   ← one {id}.pdf per paper
+├── topics/                 ← concept-organised synthesis documents across papers
 ├── tmp/                    ← staging area for freshly downloaded PDFs
 ├── scripts/
 │   ├── acquire.py          ← downloads PDFs from open-access sources
@@ -34,9 +35,11 @@ papers_bank/
 
 ## Workflows
 
+The bank is managed through the `papers-bank-librarian` skill, which exposes six actions.
+
 ### Add papers
 
-Tell the librarian skill what to add — by title, arXiv ID, DOI, or Zotero collection name. It will check for duplicates, build `search_queue.json`, and tell you what command to run:
+Tell the skill what to add — by title, arXiv ID, DOI, or Zotero collection name. It checks for duplicates, rewrites `search_queue.json` with the new entries, and tells you what to run:
 
 ```bash
 python scripts/acquire.py
@@ -46,23 +49,29 @@ python scripts/zotero_sync.py "Collection Name"
 
 `acquire.py` tries five sources in order: **arXiv → ACL Anthology → Semantic Scholar → Unpaywall → DuckDuckGo**. Downloaded PDFs land in `tmp/`. Results are written to `reports/acquire_report.json`.
 
-Once it finishes, ask the skill to catalogue the results — it reads the report, moves PDFs to `pdfs/`, and writes the summary files.
+### Catalogue
+
+Once `acquire.py` finishes, ask the skill to catalogue the results. It reads the report, moves PDFs from `tmp/` to `pdfs/`, writes summary files in `papers/`, and runs `check.py` to confirm integrity.
 
 ### Search & browse
 
-Ask the skill to find papers by topic, tag, author, venue, or prominence level. It queries `bank_index.md` and returns a compact list. Full summaries available on request.
+Ask the skill to find papers by topic, tag, author, venue, or prominence level. It queries `bank_index.md` and returns a compact list. Full summaries available on request. Also surfaces `related_ids` entries not yet in the bank as acquisition candidates.
+
+### Topics
+
+Ask the skill to create a topic file for any area covered by the bank. It identifies relevant papers, reads their full summaries, and writes a math-forward synthesis document to `topics/{slug}.md`. Sections are organised by concept — not paper-by-paper — and close with a summary table and a design-axes comparison. Topic files are not tracked by git; only the directory is preserved via `.gitkeep`.
 
 ### Audit
 
-Ask the skill to audit the bank. It runs three passes and produces a report in the conversation (no edits):
+Ask the skill to audit the bank. Produces a report in the conversation — no edits made:
 
-1. **Structural** — runs `check.py`, checks for missing PDFs, broken links, incomplete frontmatter
+1. **Structural** — runs `check.py`, checks for missing PDFs, orphan files, broken `related_ids`, incomplete frontmatter
 2. **Metadata** — scans `bank_index.md` for inconsistencies, thin entries, near-duplicates
 3. **Quality** — samples summary prose for math content, length, and objectivity
 
 ### Fix
 
-Ask the skill to fix a specific issue flagged by the audit. Changes are targeted and confirmed one at a time.
+Ask the skill to fix a specific issue flagged by an audit. Changes are targeted and confirmed one at a time.
 
 ---
 
