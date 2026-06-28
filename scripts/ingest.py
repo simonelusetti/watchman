@@ -21,10 +21,8 @@ Usage:
 
 import importlib.util
 import json
-from pathlib import Path
-
-sys._path_insert = None  # suppress linter noise
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from utils import print_table
