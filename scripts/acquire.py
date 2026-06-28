@@ -30,6 +30,7 @@ Override the source list in config.json:
   { "sources": ["arxiv", "dblp", "openalex", "europepmc", "web_search"] }
 """
 
+import difflib
 import json
 import re
 import subprocess
@@ -85,6 +86,8 @@ HEADERS = {"User-Agent": "paper-acquire/1.0 (research pipeline; contact via gith
 
 TITLE_SIMILARITY_THRESHOLD = 0.80  # filters source metadata hits before downloading
 PDF_CONTENT_THRESHOLD      = 0.75  # filters downloaded PDFs; lower because text extraction is noisier than metadata
+
+_USE_FUZZY = False  # enabled by --fuzzy; adds character-level SequenceMatcher score alongside word recall
 
 # Compiled once; used in _extract_pdf_title to filter non-title spans
 _NOISE = re.compile(
@@ -151,18 +154,40 @@ def _extract_pdf_title(doc) -> str:
     return " ".join(title_parts[:10])
 
 
-def verify_pdf_content(pdf_path: Path, query_title: str) -> tuple[bool, float]:
+def verify_pdf_content(pdf_path: Path, query_title: str, metadata: dict | None = None) -> tuple[bool, float]:
     """Check the downloaded PDF actually contains the paper we asked for.
 
-    Returns (passed, score). Falls back to first-page word recall for scanned / metadata-free PDFs.
+    Returns (passed, score). Hard identifiers (arxiv_id, doi) are checked first;
+    falls back to title similarity, then first-page word recall for scanned PDFs.
+    Enable --fuzzy to also score with character-level SequenceMatcher.
     """
     try:
-        doc       = fitz.open(str(pdf_path))
+        doc = fitz.open(str(pdf_path))
+
+        # Hard identifier check — unique IDs are definitive; no title matching needed
+        if metadata:
+            arxiv_id = (metadata.get("arxiv_id") or "").split("v")[0]
+            doi      = metadata.get("doi") or ""
+            if arxiv_id or doi:
+                page_text = doc[0].get_text()
+                doc.close()
+                if arxiv_id and arxiv_id in page_text:
+                    return True, 1.0
+                if doi and doi in page_text:
+                    return True, 1.0
+                # Identifier expected but not found — fall through to title check
+                doc = fitz.open(str(pdf_path))
+
         extracted = _extract_pdf_title(doc)
 
         if extracted:
             doc.close()
             score = title_similarity(query_title, extracted)
+            if _USE_FUZZY:
+                fuzzy = difflib.SequenceMatcher(
+                    None, normalise_title(query_title), normalise_title(extracted)
+                ).ratio()
+                score = max(score, fuzzy)
             return score >= PDF_CONTENT_THRESHOLD, score
 
         # Fallback: word recall on first page (scanned / metadata-free PDFs)
@@ -602,7 +627,7 @@ def acquire(queue: list) -> list:
                     tqdm.write(f"  {metadata['source']}: download failed — {err}")
                     continue
 
-            passed, score = verify_pdf_content(pdf_path, title)
+            passed, score = verify_pdf_content(pdf_path, title, metadata)
 
             if not passed and cached:
                 # Stale file — try a fresh download before giving up on this source
@@ -613,7 +638,7 @@ def acquire(queue: list) -> list:
                         had_paywall = True
                     tqdm.write(f"  {metadata['source']}: download failed — {err}")
                     continue
-                passed, score = verify_pdf_content(pdf_path, title)
+                passed, score = verify_pdf_content(pdf_path, title, metadata)
 
             if passed:
                 tqdm.write(f"  found via {metadata['source']} ({score:.2f})")
@@ -655,7 +680,7 @@ def _print_summary(results: list) -> None:
 
 
 
-_ZOTERO_REPORT = str(REPORTS / "zotero_import_report.json")
+_ZOTERO_REPORT = str(REPORTS / "zotero_sync_report.json")
 
 
 def main():
@@ -664,15 +689,21 @@ def main():
     parser.add_argument("--clean", action="store_true", help="Delete tmp/*.pdf before running")
     parser.add_argument("--zotero-report", nargs="?", const=_ZOTERO_REPORT, default=None,
                         metavar="PATH",
-                        help="Merge a zotero_import report; omit to ignore. "
+                        help="Merge a zotero_sync report; omit to ignore. "
                              f"Defaults to {_ZOTERO_REPORT} when flag is given without a value.")
     parser.add_argument("--no-polite", action="store_true",
                         help="Disable the OpenAlex polite-pool email for this run.")
+    parser.add_argument("--fuzzy", action="store_true",
+                        help="Add character-level SequenceMatcher score alongside word recall.")
     args = parser.parse_args()
 
     if args.no_polite:
         global _OPENALEX_EMAIL
         _OPENALEX_EMAIL = None
+
+    if args.fuzzy:
+        global _USE_FUZZY
+        _USE_FUZZY = True
 
     TMP.mkdir(exist_ok=True)
     if args.clean:
