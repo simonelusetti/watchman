@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared utilities for acquire.py, check.py, and zotero_sync.py."""
+"""Shared utilities for acquire.py, check.py, and zotero_import.py."""
 
 import re
 import unicodedata

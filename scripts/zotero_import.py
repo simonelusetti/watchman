@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 """
-zotero_sync.py — pull a Zotero collection into the acquisition pipeline.
+zotero_import.py — pull a Zotero collection into the acquisition pipeline.
 
 Usage:
-    python scripts/zotero_sync.py <collection_name> [--dry-run]
+    python scripts/zotero_import.py <collection_name> [--dry-run] [--no-acquire]
 
     <collection_name>   Exact name of a top-level or nested Zotero collection.
                         Case-insensitive. Use quotes if the name contains spaces.
     --dry-run           Print what would be queued without writing anything or
                         calling acquire.py.
+    --no-acquire        Write search_queue.json and zotero_import_report.json but
+                        do not call acquire.py.
 
 What it does:
     1. Fetches all items in the named collection from Zotero.
     2. Checks each against the bank index (via acquire.already_in_bank).
-    3. Writes only new papers to search_queue.json.
-    4. Calls acquire.py to download them.
+    3. For new items, attempts to download the PDF directly from Zotero storage.
+       - Verified PDFs are saved to tmp/ and recorded in zotero_import_report.json.
+       - Malformed or unverifiable PDFs are deleted and the paper is queued normally.
+    4. Writes remaining papers (no Zotero PDF) to search_queue.json.
+    5. Calls acquire.py --zotero-report so it merges the pre-verified PDFs.
 
 Config:
     Reads Zotero credentials from config.json at the bank root:
@@ -42,7 +47,7 @@ from utils import print_table
 from pyzotero import zotero as pyzotero
 
 # ---------------------------------------------------------------------------
-# Borrow bank helpers from acquire.py
+# Borrow bank + PDF helpers from acquire.py
 # ---------------------------------------------------------------------------
 
 _spec = importlib.util.spec_from_file_location("acquire", Path(__file__).parent / "acquire.py")
@@ -53,10 +58,13 @@ _spec.loader.exec_module(_acq)
 # Paths
 # ---------------------------------------------------------------------------
 
-ROOT    = Path(__file__).parent.parent
-CONFIG  = ROOT / "config.json"
-QUEUE   = ROOT / "search_queue.json"
-ACQUIRE = ROOT / "scripts" / "acquire.py"
+ROOT          = Path(__file__).parent.parent
+CONFIG        = ROOT / "config.json"
+QUEUE         = ROOT / "search_queue.json"
+REPORTS       = ROOT / "reports"
+ZOTERO_REPORT = REPORTS / "zotero_import_report.json"
+ACQUIRE       = ROOT / "scripts" / "acquire.py"
+TMP           = ROOT / "tmp"
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +98,38 @@ def find_collection_key(zot, name: str) -> str | None:
     return None
 
 
+def try_zotero_pdf(zot, item_key: str, title: str) -> tuple[bool, float]:
+    """Try to download a verified PDF from Zotero storage for this item.
+
+    Returns (success, content_score). On success the file is saved to
+    tmp/{slug}.pdf. On failure any partial file is removed.
+    """
+    try:
+        children = zot.children(item_key, itemType="attachment")
+    except Exception:
+        return False, 0.0
+
+    for att in children:
+        if att["data"].get("contentType") != "application/pdf":
+            continue
+        att_key = att["key"]
+        slug     = _acq.slugify(title)
+        pdf_path = TMP / f"{slug}.pdf"
+        try:
+            pdf_bytes = zot.file(att_key)
+            if not isinstance(pdf_bytes, bytes) or pdf_bytes[:4] != b"%PDF":
+                continue
+            pdf_path.write_bytes(pdf_bytes)
+            passed, score = _acq.verify_pdf_content(pdf_path, title)
+            if passed:
+                return True, score
+            pdf_path.unlink(missing_ok=True)
+        except Exception:
+            pdf_path.unlink(missing_ok=True)
+
+    return False, 0.0
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -101,6 +141,8 @@ def main():
     parser.add_argument("collection", help="Zotero collection name (case-insensitive)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print what would be queued without writing files or running acquire.py")
+    parser.add_argument("--no-acquire", action="store_true",
+                        help="Write queue and report but do not call acquire.py")
     args = parser.parse_args()
 
     cfg = json.loads(CONFIG.read_text())["zotero"]
@@ -115,9 +157,11 @@ def main():
 
     items = zot.everything(zot.collection_items(col_key, itemType="-attachment"))
     bank  = _acq.load_bank_index()
+    TMP.mkdir(exist_ok=True)
 
-    rows        = []
-    new_entries = []
+    rows             = []   # for the summary table
+    queue_entries    = []   # papers needing acquire
+    zotero_verified  = []   # papers with confirmed Zotero PDFs
 
     for item in items:
         data     = item["data"]
@@ -136,24 +180,41 @@ def main():
             entry["doi"] = doi
 
         if _acq.already_in_bank(entry, bank):
-            rows.append((title, source, "in bank"))
+            rows.append((title, source, "in bank", ""))
+            continue
+
+        if args.dry_run:
+            rows.append((title, source, "new", ""))
+            queue_entries.append(entry)
+            continue
+
+        ok, score = try_zotero_pdf(zot, item["key"], title)
+        if ok:
+            zotero_verified.append({"query": title, "file": f"tmp/{_acq.slugify(title)}.pdf",
+                                    "content_score": score})
+            rows.append((title, source, "zotero pdf", f"{score:.2f}"))
         else:
-            new_entries.append(entry)
-            rows.append((title, source, "new"))
+            queue_entries.append(entry)
+            rows.append((title, source, "queued", ""))
 
     print()
-    print_table(["Paper", "Source", "Status"], rows)
-
-    if not new_entries:
-        print("\nBank is up to date with this collection.")
-        return
+    print_table(["Paper", "Source", "Status", "Score"], rows)
 
     if args.dry_run:
-        print("\n[dry-run] search_queue.json NOT written. acquire.py NOT called.")
+        print("\n[dry-run] Nothing written. acquire.py NOT called.")
         return
 
-    QUEUE.write_text(json.dumps(new_entries, indent=2, ensure_ascii=False))
-    result = subprocess.run([sys.executable, str(ACQUIRE)], cwd=str(ROOT))
+    REPORTS.mkdir(exist_ok=True)
+    ZOTERO_REPORT.write_text(json.dumps({"results": zotero_verified}, indent=2))
+    QUEUE.write_text(json.dumps(queue_entries, indent=2, ensure_ascii=False))
+
+    if args.no_acquire:
+        return
+
+    result = subprocess.run(
+        [sys.executable, str(ACQUIRE), "--zotero-report", str(ZOTERO_REPORT)],
+        cwd=str(ROOT),
+    )
     sys.exit(result.returncode)
 
 

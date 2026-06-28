@@ -63,12 +63,15 @@ CHECK   = ROOT / "scripts" / "check.py"
 INGEST  = ROOT / "scripts" / "ingest.py"
 
 _cfg_path = ROOT / "config.json"
-try:
-    _cfg = json.loads(_cfg_path.read_text())
-    _UNPAYWALL_EMAIL = _cfg["zotero"]["email"]
-except Exception:
-    _cfg = {}
-    _UNPAYWALL_EMAIL = "user@example.com"
+_cfg      = json.loads(_cfg_path.read_text()) if _cfg_path.exists() else {}
+
+# Contact email for OpenAlex polite pool (faster tier).
+# Resolution order: config["email"] → config["zotero"]["email"] → None (polite pool disabled).
+_OPENALEX_EMAIL: str | None = (
+    _cfg.get("email")
+    or _cfg.get("zotero", {}).get("email")
+    or None
+)
 
 _DEFAULT_DOMAINS = [
     "arxiv.org", "aclanthology.org", "openreview.net", "semanticscholar.org",
@@ -80,8 +83,8 @@ ACADEMIC_DOMAINS = _cfg.get("academic_domains") or _DEFAULT_DOMAINS
 
 HEADERS = {"User-Agent": "paper-acquire/1.0 (research pipeline; contact via github)"}
 
-TITLE_SIMILARITY_THRESHOLD = 0.80  # recall: 80% of query words must appear in result
-PDF_CONTENT_THRESHOLD      = 0.75  # slightly looser — PDF title extraction is noisier
+TITLE_SIMILARITY_THRESHOLD = 0.80  # filters source metadata hits before downloading
+PDF_CONTENT_THRESHOLD      = 0.75  # filters downloaded PDFs; lower because text extraction is noisier than metadata
 
 # Compiled once; used in _extract_pdf_title to filter non-title spans
 _NOISE = re.compile(
@@ -322,7 +325,7 @@ OA_BASE = "https://api.openalex.org/works"
 
 
 def try_openalex(paper: dict) -> dict | None:
-    params = {"mailto": _UNPAYWALL_EMAIL}
+    params = {"mailto": _OPENALEX_EMAIL} if _OPENALEX_EMAIL else {}
 
     # DOI fast path — direct lookup, no title matching needed
     if paper.get("doi"):
@@ -652,19 +655,45 @@ def _print_summary(results: list) -> None:
 
 
 
+_ZOTERO_REPORT = str(REPORTS / "zotero_import_report.json")
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--clean", action="store_true", help="Delete tmp/*.pdf before running")
+    parser.add_argument("--zotero-report", nargs="?", const=_ZOTERO_REPORT, default=None,
+                        metavar="PATH",
+                        help="Merge a zotero_import report; omit to ignore. "
+                             f"Defaults to {_ZOTERO_REPORT} when flag is given without a value.")
+    parser.add_argument("--no-polite", action="store_true",
+                        help="Disable the OpenAlex polite-pool email for this run.")
     args = parser.parse_args()
+
+    if args.no_polite:
+        global _OPENALEX_EMAIL
+        _OPENALEX_EMAIL = None
 
     TMP.mkdir(exist_ok=True)
     if args.clean:
         for f in TMP.glob("*.pdf"):
             f.unlink()
 
-    queue   = json.loads(QUEUE.read_text())
-    results = acquire(queue)
+    queue = json.loads(QUEUE.read_text())
+
+    # Merge pre-verified Zotero PDFs — exclude their titles from the queue
+    zotero_results = []
+    if args.zotero_report:
+        zr_path = Path(args.zotero_report)
+        if zr_path.exists():
+            zotero_results = [
+                {**r, "status": "found", "source": "zotero"}
+                for r in json.loads(zr_path.read_text()).get("results", [])
+            ]
+            zotero_titles = {r["query"] for r in zotero_results}
+            queue = [p for p in queue if p["title"] not in zotero_titles]
+
+    results = zotero_results + acquire(queue)
     REPORT.write_text(json.dumps({"results": results}, indent=2))
 
     _print_summary(results)

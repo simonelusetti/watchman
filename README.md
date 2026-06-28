@@ -24,7 +24,7 @@ papers_bank/
 ├── tmp/                    ← staging area for freshly downloaded PDFs
 ├── scripts/
 │   ├── acquire.py          ← downloads PDFs from open-access sources
-│   ├── zotero_sync.py      ← syncs a Zotero collection into the pipeline
+│   ├── zotero_import.py      ← syncs a Zotero collection into the pipeline
 │   └── check.py            ← validates consistency + regenerates bank_index.md
 └── reports/
     ├── acquire_report.json ← result of the last acquisition run
@@ -75,10 +75,10 @@ python scripts/check.py
 python scripts/acquire.py
 
 # Sync a Zotero collection (deduplicates, then calls acquire.py)
-python scripts/zotero_sync.py "My Collection"
+python scripts/zotero_import.py "My Collection"
 ```
 
-`check.py` requires no network and is safe to run anytime. `acquire.py` and `zotero_sync.py` require network access; Zotero credentials go in `config.json` (not committed — see `config.json.example`).
+`check.py` requires no network and is safe to run anytime. `acquire.py` and `zotero_import.py` require network access; Zotero credentials go in `config.json` (not committed — see `config.json.example`).
 
 `acquire.py` tries five sources in order: **arXiv → ACL Anthology → Semantic Scholar → Unpaywall → DuckDuckGo**. PDFs land in `tmp/`; results written to `reports/acquire_report.json`.
 
@@ -92,7 +92,7 @@ All interactions go through the `papers-bank-librarian` skill. It always reads `
 
 Triggered by: titles, arXiv IDs, DOIs, a Zotero collection name, or a topic description.
 
-The skill identifies specific papers, checks for duplicates against `bank_index.md`, and **rewrites** `search_queue.json` with the new entries (if there are existing queued-but-unrun entries, it asks whether to overwrite or merge). It then tells you to run `acquire.py` (or `zotero_sync.py` for Zotero collections). After delivering those instructions, it also suggests a topic file if the queue has a clear coherent theme.
+The skill identifies specific papers, checks for duplicates against `bank_index.md`, and **rewrites** `search_queue.json` with the new entries (if there are existing queued-but-unrun entries, it asks whether to overwrite or merge). It then tells you to run `acquire.py` (or `zotero_import.py` for Zotero collections). After delivering those instructions, it also suggests a topic file if the queue has a clear coherent theme.
 
 ### Catalogue
 
