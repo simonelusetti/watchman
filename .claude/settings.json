@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh repo *)",
+      "Bash(gh api *)",
+      "Bash(ls ~/.claude/ 2>/dev/null)",
+      "Read(//Users/simonelusetti/.claude/**)",
+      "Bash(ls ~/.claude/plugins/ 2>/dev/null || echo \"empty or missing\")",
+      "Read(//Users/simonelusetti/.claude/plugins/**)",
+      "Bash(cat ~/.claude/plugins/known_marketplaces.json 2>/dev/null)"
+    ]
+  }
+}

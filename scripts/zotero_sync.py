@@ -37,17 +37,11 @@ import sys
 import unicodedata
 from pathlib import Path
 
-try:
-    from pyzotero import zotero as pyzotero
-except ImportError:
-    print("Error: pyzotero not installed. Run: pip install pyzotero")
-    sys.exit(1)
+sys.path.insert(0, str(Path(__file__).parent))
+from utils import normalise_title, parse_frontmatter
 
-try:
-    import yaml
-except ImportError:
-    print("Error: PyYAML not installed. Run: pip install pyyaml")
-    sys.exit(1)
+from pyzotero import zotero as pyzotero
+
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -70,14 +64,6 @@ def load_config() -> dict:
         print("Create it with your Zotero credentials (see script docstring).")
         sys.exit(1)
     return json.loads(CONFIG.read_text())
-
-
-def normalise_title(title: str) -> str:
-    """Lowercase, strip diacritics and punctuation, collapse whitespace."""
-    t = unicodedata.normalize("NFKD", title.lower().strip())
-    t = re.sub(r"[^\w\s]", "", t)
-    t = re.sub(r"\s+", " ", t).strip()
-    return t
 
 
 def extract_arxiv_id(item_data: dict) -> str | None:
@@ -121,15 +107,8 @@ def load_existing_papers() -> tuple[set[str], set[str]]:
         return known_titles, known_arxiv
 
     for p in PAPERS.glob("*_summary.md"):
-        text = p.read_text(encoding="utf-8")
-        if not text.startswith("---"):
-            continue
-        end = text.find("\n---", 3)
-        if end == -1:
-            continue
-        try:
-            fm = yaml.safe_load(text[3:end]) or {}
-        except yaml.YAMLError:
+        fm = parse_frontmatter(p)
+        if fm is None:
             continue
 
         title = fm.get("title", "")

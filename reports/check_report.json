@@ -1,12 +1,27 @@
 {
-  "checked_at": "2026-06-23T15:57:54.109618+00:00",
+  "checked_at": "2026-06-28T12:19:30.484388+00:00",
   "summary": {
-    "total_summaries": 163,
-    "total_pdfs": 163,
-    "issue_count": 0,
+    "total_summaries": 195,
+    "total_pdfs": 195,
+    "issue_count": 2,
     "error_count": 0,
-    "warning_count": 0,
-    "clean": true
+    "warning_count": 2,
+    "clean": false
   },
-  "issues": []
+  "issues": [
+    {
+      "type": "related_ids_self",
+      "severity": "warning",
+      "message": "[label_semantics_few_shot_named_entity] related_ids contains the paper's own id",
+      "id": "label_semantics_few_shot_named_entity",
+      "file": "label_semantics_few_shot_named_entity_summary.md"
+    },
+    {
+      "type": "related_ids_self",
+      "severity": "warning",
+      "message": "[matching_blanks_distributional_similarity_relation_learning] related_ids contains the paper's own id",
+      "id": "matching_blanks_distributional_similarity_relation_learning",
+      "file": "matching_blanks_distributional_similarity_relation_learning_summary.md"
+    }
+  ]
 }
