@@ -568,7 +568,7 @@ def acquire(queue: list) -> list:
     for paper, existing in skip_bank:
         results.append({"query": paper["title"], "status": "already_in_bank", "existing_id": existing.get("id")})
 
-    iterator = tqdm(to_fetch, desc="Acquiring", unit="paper")
+    iterator = tqdm(to_fetch, desc="Acquiring", unit="paper", leave=False)
 
     for paper in iterator:
         title      = paper["title"]
@@ -639,35 +639,17 @@ _STATUS_LABEL = {
     "not_found":      "not found",
 }
 
-_STATUS_DETAIL = {
-    "found":          "PDF downloaded and content verified",
-    "already_in_bank": "already present in papers/",
-    "paywalled":      "metadata found but all PDF URLs returned 4xx",
-    "not_found":      "no source returned metadata or a downloadable PDF",
-}
-
 
 def _print_summary(results: list) -> None:
-    c1, c2, c3 = 50, 10, 30
     paper_rows = []
     for r in results:
-        title = r["query"]
-        t     = (title[:c1 - 1] + "…") if len(title) > c1 else title
         label = _STATUS_LABEL.get(r["status"], r["status"])
         notes = f"{r['content_score']:.2f}" if r["status"] == "found" else ""
-        paper_rows.append((t, label, notes))
+        paper_rows.append((r["query"], label, notes))
     print()
-    print_table(["Paper", "Status", "Notes"], paper_rows, [c1, c2, c3], ["<", ">", "<"])
+    print(f"Acquisition summary: {len(results)} papers")
+    print_table(["Paper", "Status", "Notes"], paper_rows, ["<", ">", "<"])
 
-    counts = {s: sum(1 for r in results if r["status"] == s) for s in _STATUS_LABEL}
-    c1, c2, c3 = 12, 5, 48
-    status_rows = [
-        (label, counts[status], _STATUS_DETAIL[status])
-        for status, label in _STATUS_LABEL.items()
-        if counts[status]
-    ]
-    print()
-    print_table(["Status", "Count", "Description"], status_rows, [c1, c2, c3], ["<", ">", "<"])
 
 
 def main():

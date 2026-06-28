@@ -4,6 +4,10 @@
       "query": "Attention Is All You Need",
       "status": "already_in_bank",
       "existing_id": "attention_all_you_need"
+    },
+    {
+      "query": "Bro visited his friend",
+      "status": "not_found"
     }
   ]
 }

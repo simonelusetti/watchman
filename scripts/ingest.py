@@ -59,10 +59,6 @@ def _best_content_match(pdf: Path, candidates: list[dict]) -> tuple[dict | None,
     return (best, best_score) if best_score >= THRESHOLD else (None, best_score)
 
 
-def _truncate(items: list[str], n: int = 3) -> str:
-    shown = ", ".join((t[:30] + "…" if len(t) > 30 else t) for t in items[:n])
-    return shown + (f" (+{len(items) - n} more)" if len(items) > n else "")
-
 
 # ---------------------------------------------------------------------------
 # Main
@@ -116,18 +112,19 @@ def main() -> None:
 
     # Step 4: report (skip if nothing to say)
     rows = []
-    if cat_ok:
-        rows.append(("ok", len(cat_ok), ""))
-    if cat_resolved:
-        rows.append(("resolved", len(cat_resolved), _truncate([r["query"] for r in cat_resolved])))
-    if cat_unrecognized:
-        rows.append(("unrecognized", len(cat_unrecognized), _truncate(cat_unrecognized)))
-    if cat_missing:
-        rows.append(("missing", len(cat_missing), _truncate([r["query"] for r in cat_missing])))
+    for r in cat_ok:
+        rows.append((r["query"], "ok", ""))
+    for r in cat_resolved:
+        rows.append((r["query"], "resolved", "manually provided"))
+    for s in cat_unrecognized:
+        rows.append((s, "unrecognized", "not linked to any queue entry, if you purposfully manually provided this isn't a problem"))
+    for r in cat_missing:
+        rows.append((r["query"], "missing", "failed to find the file, manually provide it in tmp/ and rerun ingest.py resolve"))
 
     if rows:
         print()
-        print_table(["Status", "Count", "Notes"], rows, [14, 5, 50], ["<", ">", "<"])
+        print(f"Ingest summary:")
+        print_table(["Paper", "Status", "Description"], rows)
 
     REPORTS.mkdir(exist_ok=True)
     ING_REPORT.write_text(json.dumps({

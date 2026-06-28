@@ -6,6 +6,7 @@ import unicodedata
 from pathlib import Path
 
 import yaml
+from prettytable import PrettyTable
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 
 # Science-paper filler words not covered by sklearn's general list.
@@ -14,23 +15,16 @@ _SCIENCE_STOP = {"based", "using"}
 _STOP = ENGLISH_STOP_WORDS | _SCIENCE_STOP
 
 
-def print_table(headers: list, rows: list, widths: list, aligns: list | None = None) -> None:
-    """Print a fixed-width table with a header row and separator."""
-    if aligns is None:
-        aligns = ["<"] * len(widths)
-    sep  = "  "
-    fmt  = sep.join(f"{{:{a}{w}}}" for a, w in zip(aligns, widths))
-    rule = sep.join("─" * w for w in widths)
-
-    def _row(values):
-        padded = list(values) + [""] * (len(widths) - len(values))
-        cells  = [str(v)[:w] for v, w in zip(padded, widths)]
-        return fmt.format(*cells)
-
-    print(_row(headers))
-    print(rule)
+def print_table(headers: list, rows: list, aligns: list | None = None) -> None:
+    """Print an auto-sized table using prettytable."""
+    _align_map = {"<": "l", ">": "r", "^": "c"}  # type: ignore[assignment]
+    t = PrettyTable(field_names=headers)
+    for i, header in enumerate(headers):
+        t.align[header] = _align_map.get(aligns[i] if aligns else "<", "l")  # type: ignore[index]
     for row in rows:
-        print(_row(row))
+        padded = list(row) + [""] * (len(headers) - len(row))
+        t.add_row(padded)
+    print(t)
 
 
 def normalise_title(title: str) -> str:

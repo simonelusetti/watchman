@@ -276,7 +276,6 @@ def build_report(records: list[dict], issues: list[dict]) -> dict:
 
 def print_report(report: dict) -> None:
     s   = report["summary"]
-    c1, c2, c3 = 22, 5, 50
     rows: list = [("summaries", s["total_summaries"], ""), ("PDFs", s["total_pdfs"], "")]
 
     if not s["clean"]:
@@ -284,14 +283,24 @@ def print_report(report: dict) -> None:
         for iss in report["issues"]:
             by_type.setdefault(iss["type"], []).append(iss)
         for type_, group in sorted(by_type.items()):
-            marker = "!" if group[0]["severity"] == "error" else "~"
-            ids    = [i.get("id") or i.get("stem", "?") for i in group]
-            short  = [x.replace("_", " ")[:20].strip() for x in ids[:3]]
-            notes  = ", ".join(short) + (f" (+{len(ids)-3} more)" if len(ids) > 3 else "")
-            rows.append((f"{marker} {type_}", len(group), notes[:c3]))
+            desc = re.sub(r"^\[[^\]]+\]\s*", "", group[0]["message"])
+            rows.append((type_, len(group), desc))
 
     print()
-    print_table(["Bank", "Count", "Notes"], rows, [c1, c2, c3], ["<", ">", "<"])
+    print(f"Bank check summary:")
+    print_table(["Bank", "Count", "Description"], rows, ["<", ">", "<"])
+
+    if not s["clean"]:
+        issue_rows = []
+        for iss in report["issues"]:
+            typ   = iss["severity"].upper()
+            paper = iss.get("id") or iss.get("stem") or iss.get("file", "?")
+            desc  = re.sub(r"^\[[^\]]+\]\s*", "", iss["message"])
+            issue_rows.append((typ, paper, desc))
+        print()
+        print("Issues:")
+        print_table(["Type", "Paper", "Description"], issue_rows)
+        print()
 
 
 # ---------------------------------------------------------------------------

@@ -12,9 +12,8 @@ Usage:
 
 What it does:
     1. Fetches all items in the named collection from Zotero.
-    2. Loads existing papers in the bank (papers/*_summary.md) to build a
-       known-titles / known-arxiv-ids set.
-    3. Writes only *new* papers (not already in the bank) to search_queue.json.
+    2. Checks each against the bank index (via acquire.already_in_bank).
+    3. Writes only new papers to search_queue.json.
     4. Calls acquire.py to download them.
 
 Config:
@@ -30,18 +29,25 @@ Config:
 """
 
 import argparse
+import importlib.util
 import json
 import re
 import subprocess
 import sys
-import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from utils import normalise_title, parse_frontmatter
+from utils import print_table
 
 from pyzotero import zotero as pyzotero
 
+# ---------------------------------------------------------------------------
+# Borrow bank helpers from acquire.py
+# ---------------------------------------------------------------------------
+
+_spec = importlib.util.spec_from_file_location("acquire", Path(__file__).parent / "acquire.py")
+_acq  = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_acq)
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -49,7 +55,6 @@ from pyzotero import zotero as pyzotero
 
 ROOT    = Path(__file__).parent.parent
 CONFIG  = ROOT / "config.json"
-PAPERS  = ROOT / "papers"
 QUEUE   = ROOT / "search_queue.json"
 ACQUIRE = ROOT / "scripts" / "acquire.py"
 
@@ -58,31 +63,17 @@ ACQUIRE = ROOT / "scripts" / "acquire.py"
 # Helpers
 # ---------------------------------------------------------------------------
 
-def load_config() -> dict:
-    if not CONFIG.exists():
-        print(f"Error: config.json not found at {CONFIG}")
-        print("Create it with your Zotero credentials (see script docstring).")
-        sys.exit(1)
-    return json.loads(CONFIG.read_text())
-
-
 def extract_arxiv_id(item_data: dict) -> str | None:
-    """
-    Try to find an arXiv ID in the Zotero item.
-    Zotero stores it in various places depending on how the item was imported:
-      - extra field: "arXiv:2005.00928" or "arXiv ID: 2005.00928"
-      - url field: "https://arxiv.org/abs/2005.00928"
-    """
     patterns = [
-        r"arxiv[:\s]+(\d{4}\.\d{4,5}(?:v\d+)?)",   # extra field
-        r"arxiv\.org/abs/(\d{4}\.\d{4,5}(?:v\d+)?)",  # URL
+        r"arxiv[:\s]+(\d{4}\.\d{4,5}(?:v\d+)?)",
+        r"arxiv\.org/abs/(\d{4}\.\d{4,5}(?:v\d+)?)",
     ]
     for field in ("extra", "url", "DOI"):
         value = item_data.get(field, "") or ""
         for pat in patterns:
             m = re.search(pat, value, re.IGNORECASE)
             if m:
-                return m.group(1).split("v")[0]   # strip version suffix
+                return m.group(1).split("v")[0]
     return None
 
 
@@ -91,104 +82,12 @@ def extract_doi(item_data: dict) -> str | None:
     return doi if doi else None
 
 
-# ---------------------------------------------------------------------------
-# Existing bank index
-# ---------------------------------------------------------------------------
-
-def load_existing_papers() -> tuple[set[str], set[str]]:
-    """
-    Returns (known_titles, known_arxiv_ids) — normalised sets built from
-    the frontmatter of every *_summary.md in papers/.
-    """
-    known_titles: set[str] = set()
-    known_arxiv: set[str] = set()
-
-    if not PAPERS.exists():
-        return known_titles, known_arxiv
-
-    for p in PAPERS.glob("*_summary.md"):
-        fm = parse_frontmatter(p)
-        if fm is None:
-            continue
-
-        title = fm.get("title", "")
-        if title:
-            known_titles.add(normalise_title(title))
-
-        arxiv_id = fm.get("arxiv_id")
-        if arxiv_id:
-            known_arxiv.add(str(arxiv_id).split("v")[0])
-
-    return known_titles, known_arxiv
-
-
-# ---------------------------------------------------------------------------
-# Zotero helpers
-# ---------------------------------------------------------------------------
-
 def find_collection_key(zot, name: str) -> str | None:
-    """
-    Return the Zotero key for the first collection whose name matches
-    `name` (case-insensitive), or None if not found.
-    """
-    collections = zot.everything(zot.collections())
     name_norm = name.strip().lower()
-    for col in collections:
+    for col in zot.everything(zot.collections()):
         if col["data"]["name"].strip().lower() == name_norm:
             return col["key"]
     return None
-
-
-def fetch_collection_items(zot, collection_key: str) -> list[dict]:
-    """Return all non-attachment items in a collection."""
-    return zot.everything(
-        zot.collection_items(collection_key, itemType="-attachment")
-    )
-
-
-# ---------------------------------------------------------------------------
-# Queue builder
-# ---------------------------------------------------------------------------
-
-def build_queue_entries(
-    items: list[dict],
-    known_titles: set[str],
-    known_arxiv: set[str],
-) -> tuple[list[dict], list[str]]:
-    """
-    Convert Zotero items to search_queue entries, skipping papers already
-    in the bank.  Returns (new_entries, skipped_titles).
-    """
-    new_entries: list[dict] = []
-    skipped: list[str] = []
-
-    for item in items:
-        data = item["data"]
-        title = data.get("title", "").strip()
-        if not title or title.lower() == "untitled":
-            continue
-
-        norm = normalise_title(title)
-        arxiv_id = extract_arxiv_id(data)
-        doi = extract_doi(data)
-
-        # Skip if already in bank
-        if norm in known_titles:
-            skipped.append(title)
-            continue
-        if arxiv_id and arxiv_id in known_arxiv:
-            skipped.append(title)
-            continue
-
-        entry: dict = {"title": title}
-        if arxiv_id:
-            entry["arxiv_id"] = arxiv_id
-        if doi:
-            entry["doi"] = doi
-
-        new_entries.append(entry)
-
-    return new_entries, skipped
 
 
 # ---------------------------------------------------------------------------
@@ -200,66 +99,61 @@ def main():
         description="Sync a Zotero collection into the papers_bank acquisition pipeline."
     )
     parser.add_argument("collection", help="Zotero collection name (case-insensitive)")
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print what would be queued without writing files or running acquire.py",
-    )
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Print what would be queued without writing files or running acquire.py")
     args = parser.parse_args()
 
-    cfg = load_config()["zotero"]
+    cfg = json.loads(CONFIG.read_text())["zotero"]
     zot = pyzotero.Zotero(cfg["library_id"], cfg["library_type"], cfg["api_key"])
 
-    # ── Find collection ─────────────────────────────────────────────────────
-    print(f"Looking for collection '{args.collection}'...")
     col_key = find_collection_key(zot, args.collection)
     if not col_key:
-        print(f"Error: collection '{args.collection}' not found in your Zotero library.")
-        print("Available collections:")
-        for col in zot.everything(zot.collections()):
-            print(f"  • {col['data']['name']}")
+        collections = zot.everything(zot.collections())
+        print(f"Collection '{args.collection}' not found. Available:")
+        print_table(["Collection"], [[c["data"]["name"]] for c in collections])
         sys.exit(1)
 
-    # ── Fetch items ─────────────────────────────────────────────────────────
-    print(f"Fetching items from '{args.collection}'...")
-    items = fetch_collection_items(zot, col_key)
-    print(f"  {len(items)} item(s) found in collection.")
+    items = zot.everything(zot.collection_items(col_key, itemType="-attachment"))
+    bank  = _acq.load_bank_index()
 
-    # ── Load existing bank ──────────────────────────────────────────────────
-    known_titles, known_arxiv = load_existing_papers()
-    print(f"  {len(known_titles)} paper(s) already in bank (will be skipped).")
+    rows        = []
+    new_entries = []
 
-    # ── Build queue ──────────────────────────────────────────────────────────
-    new_entries, skipped = build_queue_entries(items, known_titles, known_arxiv)
+    for item in items:
+        data     = item["data"]
+        title    = data.get("title", "").strip()
+        if not title or title.lower() == "untitled":
+            continue
 
-    if skipped:
-        print(f"\nSkipped ({len(skipped)} already in bank):")
-        for t in skipped:
-            print(f"  ✓ {t}")
+        arxiv_id = extract_arxiv_id(data)
+        doi      = extract_doi(data)
+        source   = arxiv_id or (f"doi:{doi}" if doi else "title search")
+
+        entry: dict = {"title": title}
+        if arxiv_id:
+            entry["arxiv_id"] = arxiv_id
+        if doi:
+            entry["doi"] = doi
+
+        if _acq.already_in_bank(entry, bank):
+            rows.append((title, source, "in bank"))
+        else:
+            new_entries.append(entry)
+            rows.append((title, source, "new"))
+
+    print()
+    print_table(["Paper", "Source", "Status"], rows)
 
     if not new_entries:
-        print("\nNothing new to acquire. Bank is up to date with this collection.")
+        print("\nBank is up to date with this collection.")
         return
-
-    print(f"\nNew papers to acquire ({len(new_entries)}):")
-    for e in new_entries:
-        hint = e.get("arxiv_id") or e.get("doi") or "title search"
-        print(f"  → {e['title']}  [{hint}]")
 
     if args.dry_run:
         print("\n[dry-run] search_queue.json NOT written. acquire.py NOT called.")
         return
 
-    # ── Write queue ──────────────────────────────────────────────────────────
     QUEUE.write_text(json.dumps(new_entries, indent=2, ensure_ascii=False))
-    print(f"\nWritten {len(new_entries)} entr(ies) to search_queue.json.")
-
-    # ── Call acquire.py ──────────────────────────────────────────────────────
-    print("Running acquire.py...\n")
-    result = subprocess.run(
-        [sys.executable, str(ACQUIRE)],
-        cwd=str(ROOT),
-    )
+    result = subprocess.run([sys.executable, str(ACQUIRE)], cwd=str(ROOT))
     sys.exit(result.returncode)
 
 
